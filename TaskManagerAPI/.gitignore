@@ -21,6 +21,7 @@ Thumbs.db
 # Configuration files
 appsettings.Development.json
 appsettings.Local.json
+appsettings.json
 
 # Entity Framework migrations snapshots
 Migrations/
@@ -39,3 +40,6 @@ yarn-error.log*
 # NuGet packages
 *.nupkg
 project.lock.json
+
+# Environment variables
+.env
