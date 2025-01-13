@@ -1,0 +1,41 @@
+# Build Results
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.vspscc
+*.vssscc
+
+# Logs
+*.log
+
+# Visual Studio Code
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Configuration files
+appsettings.Development.json
+appsettings.Local.json
+
+# Entity Framework migrations snapshots
+Migrations/
+
+# ASP.NET Secrets
+secrets.json
+
+# Node modules (if used for front-end or bundling)
+node_modules/
+
+# npm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# NuGet packages
+*.nupkg
+project.lock.json
