@@ -102,7 +102,10 @@ namespace TaskManagerAPI.Controllers
                 return Unauthorized("Invalid email or password");
 
             var token = GenerateJwtToken(user);
-            return Ok(new { token = token });
+            return Ok(new { 
+                token = token,
+                email = user.Email
+            });
         }
 
         private string GenerateJwtToken(User user)

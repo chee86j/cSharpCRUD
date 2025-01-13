@@ -16,10 +16,11 @@ export default function Login() {
       const response = await api.post("/auth/login", { email, password });
       if (response.data.token) {
         localStorage.setItem("token", response.data.token);
+        localStorage.setItem("userEmail", email); // Store email for landing page
         api.defaults.headers.common[
           "Authorization"
         ] = `Bearer ${response.data.token}`;
-        router.push("/dashboard");
+        router.push("/");
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
