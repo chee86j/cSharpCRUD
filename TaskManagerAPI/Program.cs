@@ -48,8 +48,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtIssuer,
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtKey))
-    };
+            Encoding.UTF8.GetBytes(jwtKey)),
+                NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
+            };
 });
 
 // CORS configuration
@@ -57,10 +58,9 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", builder =>
     {
-        builder.SetIsOriginAllowed(_ => true)
+        builder.AllowAnyOrigin()
                .AllowAnyMethod()
-               .AllowAnyHeader()
-               .WithExposedHeaders("Content-Disposition", "WWW-Authenticate");
+               .AllowAnyHeader();
     });
 });
 
