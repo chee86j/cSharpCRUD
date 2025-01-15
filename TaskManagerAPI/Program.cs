@@ -49,8 +49,17 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtIssuer,
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(jwtKey)),
-                NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
-            };
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Token validated. Claims: {@Claims}", 
+                context.Principal?.Claims.Select(c => new { c.Type, c.Value }));
+        }
+    };
 });
 
 // CORS configuration

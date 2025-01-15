@@ -17,6 +17,7 @@ interface Task {
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [userData, setUserData] = useState<{ email: string } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,23 +26,43 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
+        // Log user data from localStorage
+        const token = localStorage.getItem("token");
+        const userEmail = localStorage.getItem("userEmail");
+        console.log("Current logged in user:", {
+          email: userEmail,
+          token: token?.substring(0, 20) + "...",
+        });
+
+        console.log("Fetching tasks for user...");
         const response = await api.get("/Tasks");
+        console.log("Tasks fetched successfully for user:", {
+          email: userEmail,
+          tasksCount: response.data.length,
+          tasks: response.data,
+        });
         setTasks(response.data);
+        setUserData({ email: userEmail || "" });
       } catch (error) {
-        setError("Failed to fetch tasks");
-        console.error("Error fetching tasks:", error);
         if (axios.isAxiosError(error) && error.response?.status === 401) {
+          console.log("User not authenticated, redirecting to login...");
           router.push("/auth/login");
+        } else {
+          console.error("Error fetching tasks:", error);
+          setError("Failed to fetch tasks");
         }
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (!localStorage.getItem("token")) {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.log("No authentication token found, redirecting to login...");
       router.push("/auth/login");
       return;
     }
+    console.log("User authenticated, proceeding with task fetch...");
     fetchTasks();
   }, [router]);
 
@@ -123,6 +144,10 @@ export default function Dashboard() {
 
         {isLoading ? (
           <div className="text-center py-8">Loading tasks...</div>
+        ) : tasks.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No tasks found. Create a new task to get started!
+          </div>
         ) : (
           <TaskList
             tasks={tasks}

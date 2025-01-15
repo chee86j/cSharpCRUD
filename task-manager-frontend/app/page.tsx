@@ -10,9 +10,11 @@ export default function LandingPage() {
   useEffect(() => {
     const email = localStorage.getItem("userEmail");
     if (!email) {
+      console.log("No user data found, redirecting to login...");
       router.push("/auth/login");
       return;
     }
+    console.log("User data fetched successfully:", { email });
     setUserEmail(email);
   }, [router]);
 

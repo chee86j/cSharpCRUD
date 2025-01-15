@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TaskManagerAPI.Data;
@@ -16,51 +17,66 @@ namespace TaskManagerAPI.Controllers
     public class TasksController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly UserManager<User> _userManager;
         private readonly ILogger<TasksController> _logger;
 
-        public TasksController(AppDbContext context, ILogger<TasksController> logger)
+        public TasksController(
+            AppDbContext context,
+            UserManager<User> userManager,
+            ILogger<TasksController> logger)
         {
             _context = context;
+            _userManager = userManager;
             _logger = logger;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskItem>>> GetTasks()
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return await _context.Tasks
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            _logger.LogInformation("Fetching tasks for user {UserId}", userId);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var tasks = await _context.Tasks
                 .Where(t => t.UserId == userId)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
+
+            _logger.LogInformation("Retrieved {Count} tasks for user {UserId}", tasks.Count, userId);
+            return Ok(tasks);
         }
 
         [HttpPost]
-        public async Task<ActionResult<TaskItem>> CreateTask(TaskCreateDto taskDto)
+        public async Task<ActionResult<TaskItem>> CreateTask([FromBody] TaskCreateDto taskDto)
         {
-            _logger.LogInformation("CreateTask called with data: {@taskDto}", taskDto);
-
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    var errors = ModelState.Values
-                        .SelectMany(v => v.Errors)
-                        .Select(e => e.ErrorMessage)
-                        .ToList();
+                // Log all claims for debugging
+                var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+                _logger.LogInformation("User claims: {@Claims}", claims);
 
-                    _logger.LogWarning("Validation failed: {errors}", errors);
-                    return BadRequest(new
-                    {
-                        message = "Validation failed",
-                        errors = errors
-                    });
+                // Try to get email from different claim types
+                var userEmail = User.FindFirst(ClaimTypes.Email)?.Value 
+                    ?? User.FindFirst("sub")?.Value 
+                    ?? User.FindFirst("email")?.Value;
+
+                if (string.IsNullOrEmpty(userEmail))
+                {
+                    _logger.LogError("No email claim found in token");
+                    return BadRequest(new { message = "User email not found in token" });
                 }
 
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userId))
+                _logger.LogInformation("Looking up user with email: {Email}", userEmail);
+                var user = await _userManager.FindByEmailAsync(userEmail);
+
+                if (user == null)
                 {
-                    _logger.LogWarning("User not authenticated");
-                    return Unauthorized(new { message = "User not authenticated" });
+                    _logger.LogError("User not found for email: {Email}", userEmail);
+                    return BadRequest(new { message = "Error creating task", error = "User not found" });
                 }
 
                 var task = new TaskItem
@@ -68,31 +84,22 @@ namespace TaskManagerAPI.Controllers
                     Title = taskDto.Title,
                     Description = taskDto.Description,
                     Category = taskDto.Category,
+                    UserId = user.Id,
+                    User = user,
                     IsCompleted = false,
-                    CreatedAt = DateTime.UtcNow,
-                    UserId = userId,
-                    User = await _context.Users.FindAsync(userId) ?? throw new Exception("User not found")
+                    CreatedAt = DateTime.UtcNow
                 };
 
+                _logger.LogInformation("Creating task for user: {UserId} with title: {Title}", user.Id, task.Title);
                 _context.Tasks.Add(task);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Task created successfully: {@task}", task);
-
-                return Ok(new
-                {
-                    id = task.Id,
-                    title = task.Title,
-                    description = task.Description,
-                    category = task.Category,
-                    isCompleted = task.IsCompleted,
-                    createdAt = task.CreatedAt
-                });
+                return CreatedAtAction(nameof(GetTasks), new { id = task.Id }, task);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating task");
-                return BadRequest(new { message = "Error creating task", error = ex.Message });
+                return StatusCode(500, new { message = "Error creating task", error = ex.Message });
             }
         }
 
@@ -102,8 +109,11 @@ namespace TaskManagerAPI.Controllers
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var existingTask = await _context.Tasks.FindAsync(id);
 
-            if (existingTask == null || existingTask.UserId != userId)
+            if (existingTask == null)
                 return NotFound();
+
+            if (existingTask.UserId != userId)
+                return Unauthorized();
 
             existingTask.Title = task.Title;
             existingTask.Description = task.Description;
@@ -120,8 +130,11 @@ namespace TaskManagerAPI.Controllers
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var task = await _context.Tasks.FindAsync(id);
 
-            if (task == null || task.UserId != userId)
+            if (task == null)
                 return NotFound();
+
+            if (task.UserId != userId)
+                return Unauthorized();
 
             _context.Tasks.Remove(task);
             await _context.SaveChangesAsync();
@@ -132,14 +145,8 @@ namespace TaskManagerAPI.Controllers
 
     public class TaskCreateDto
     {
-        [Required(ErrorMessage = "Title is required")]
-        [StringLength(100, MinimumLength = 1, ErrorMessage = "Title must be between 1 and 100 characters")]
-        public string Title { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Description is required")]
-        public string Description { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Category is required")]
-        public string Category { get; set; } = string.Empty;
+        public required string Title { get; set; }
+        public required string Description { get; set; }
+        public required string Category { get; set; }
     }
 }
